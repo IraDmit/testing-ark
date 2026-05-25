@@ -18,6 +18,9 @@ const calculateWidth = (stackIdx: number, countOfItems: number) => {
     return (CELL_WIDTH - stackIdx * CELL_OFFSET) / countOfItems;
 };
 
+const toDateInTZ = (dateStr: string, timeZone: string): string =>
+    new Date(dateStr).toLocaleDateString("en-CA", { timeZone });
+
 export const useTableLayout = () => {
     const prepareTableData = (
         orders: Order[] = [],
@@ -32,50 +35,45 @@ export const useTableLayout = () => {
     }[] => {
         const items: EventItem[] = [];
 
-        const selectDate = new Date(selectDateStr);
+        const targetDate = toDateInTZ(selectDateStr, timeZone);
 
         for (const order of orders) {
             const start = toMinutes(order.start_time, timeZone);
             const end = toMinutes(order.end_time, timeZone);
-            const itemDate = new Date(order.start_time);
-            if (
-                itemDate.getDate() === selectDate.getDate() &&
-                itemDate.getMonth() === selectDate.getMonth()
-            ) {
-                items.push({
-                    id: order.id,
-                    type: order.status === "Banquet" ? "banquet" : "order",
-                    startMin: start,
-                    endMin: end,
-                    duration: end - start,
-                    top: MINUTE_PX * (start - openingMinutes),
-                    raw: order,
-                    contentHeight: 0,
-                });
-            }
+
+            if (toDateInTZ(order.start_time, timeZone) !== targetDate) continue;
+
+            items.push({
+                id: order.id,
+                type: order.status === "Banquet" ? "banquet" : "order",
+                startMin: start,
+                endMin: end,
+                duration: end - start,
+                top: MINUTE_PX * (start - openingMinutes),
+                raw: order,
+                contentHeight: 0,
+            });
         }
         for (const reservation of reservations) {
             const start = toMinutes(reservation.seating_time, timeZone);
             const end = toMinutes(reservation.end_time, timeZone);
-            const itemDate = new Date(reservation.seating_time);
-            if (
-                itemDate.getDate() === selectDate.getDate() &&
-                itemDate.getMonth() === selectDate.getMonth()
-            ) {
-                items.push({
-                    id: reservation.id.toString(),
-                    type:
-                        reservation.status === "Живая очередь"
-                            ? "queue"
-                            : "reservation",
-                    startMin: start,
-                    endMin: end,
-                    duration: end - start,
-                    top: MINUTE_PX * (start - openingMinutes),
-                    raw: reservation,
-                    contentHeight: 0,
-                });
-            }
+
+            if (toDateInTZ(reservation.seating_time, timeZone) !== targetDate)
+                continue;
+
+            items.push({
+                id: reservation.id.toString(),
+                type:
+                    reservation.status === "Живая очередь"
+                        ? "queue"
+                        : "reservation",
+                startMin: start,
+                endMin: end,
+                duration: end - start,
+                top: MINUTE_PX * (start - openingMinutes),
+                raw: reservation,
+                contentHeight: 0,
+            });
         }
 
         if (!items.length) return [];
@@ -112,7 +110,7 @@ export const useTableLayout = () => {
         }[] = [];
 
         linkedGroups.forEach((group) => {
-            const sortedGroup = [...group].sort(
+            const sortedGroup = group.sort(
                 (a, b) => a.startMin - b.startMin || a.duration - b.duration,
             );
 
@@ -153,7 +151,7 @@ export const useTableLayout = () => {
                             duration: item.duration,
                             height: MINUTE_PX * item.duration,
                             top: item.top,
-                            avaliableContentHeight: item.contentHeight || null,
+                            availableContentHeight: item.contentHeight || null,
                         },
                         raw: item.raw,
                         type: item.type,

@@ -10,23 +10,18 @@
             '--leftOffset': meta.leftOffset + 'px',
         }"
     >
-        <!-- '--contentHeight':  meta.contentHeight + 'px' : '100%', -->
         <div
+            ref="contentRef"
             class="card-content"
             :class="{
-                'card-content--clipped':
-                    meta.avaliableContentHeight &&
-                    meta.avaliableContentHeight < cardContentHeight,
+                'card-content--clipped': isClipped,
             }"
             :style="{
-                '--contentHeight': meta.avaliableContentHeight
-                    ? meta.avaliableContentHeight + 'px'
+                '--contentHeight': realContentHeight
+                    ? realContentHeight + 'px'
                     : '100%',
             }"
         >
-            {{ cardContentHeight }}
-            {{ meta.avaliableContentHeight }}
-            {{ meta.avaliableContentHeight > cardContentHeight }}
             <template v-if="isOrder">
                 <div class="card-header">
                     <span class="card-label">
@@ -90,10 +85,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
-
+import { computed, onMounted, ref, useTemplateRef } from "vue";
 import type { Order, Reservation } from "@/interfaces/RestaurantResponse";
-
 import { getTimeRange } from "@/utils/formatTime";
 import type { LayoutMeta } from "@/interfaces/tableLayout";
 
@@ -105,51 +98,22 @@ const props = defineProps<{
 }>();
 
 const ordersStatus = {
-    New: {
-        label: "Новый",
-        className: "new",
-    },
-    Bill: {
-        label: "Пречек",
-        className: "bill",
-    },
-    Closed: {
-        label: "Закрытый",
-        className: "closed",
-    },
-    Banquet: {
-        label: "Банкет",
-        className: "banquet",
-    },
+    New: { label: "Новый", className: "new" },
+    Bill: { label: "Пречек", className: "bill" },
+    Closed: { label: "Закрытый", className: "closed" },
+    Banquet: { label: "Банкет", className: "banquet" },
 } as const;
 
 const reservationStatus = {
-    "Живая очередь": {
-        className: "queue",
-        label: "Живая очередь",
-    },
-    Новая: {
-        label: "Ожидает подтверждения",
-        className: "reservation-new",
-    },
-    Заявка: {
-        label: "Ожидаем",
-        className: "bid",
-    },
-    Открыт: {
-        label: "В зале",
-        className: "opened",
-    },
-    Закрыт: {
-        label: "Отменен",
-        className: "closed",
-    },
+    "Живая очередь": { className: "queue", label: "Живая очередь" },
+    Новая: { label: "Ожидает подтверждения", className: "reservation-new" },
+    Заявка: { label: "Ожидаем", className: "bid" },
+    Открыт: { label: "В зале", className: "opened" },
+    Закрыт: { label: "Отменен", className: "closed" },
 } as const;
 
 const isOrder = props.type === "order" || props.type === "banquet";
-
 const isBanquet = props.type === "banquet";
-
 const reservation = props.order as Reservation;
 
 const isReservation = (order: Order | Reservation): order is Reservation => {
@@ -160,7 +124,6 @@ const statusKey = computed(() => {
     if (isReservation(props.order)) {
         return reservationStatus[props.order.status];
     }
-
     return ordersStatus[props.order.status];
 });
 
@@ -168,46 +131,123 @@ const timeRange = computed(() => {
     const startTime = isOrder
         ? (props.order as Order).start_time
         : (props.order as Reservation).seating_time;
-
     return getTimeRange(startTime, props.order.end_time, props.timeZone);
 });
 
-let cardContentHeight = ref<number>(0);
+const contentRef = useTemplateRef<HTMLElement>("contentRef");
+const realContentHeight = ref(0);
+
+const isClipped = computed(() => {
+    if (!contentRef.value) return;
+    if (!props.meta.availableContentHeight) return false;
+    return props.meta.availableContentHeight < contentRef.value.offsetHeight;
+});
 
 onMounted(() => {
-    console.log(document.querySelector(".card-content"));
+    if (!contentRef.value || !props.meta.availableContentHeight) return;
 
-    cardContentHeight.value =
-        document.querySelector(".card-content")?.clientHeight || 0;
+    for (let i = 0; i < contentRef.value.children.length; i++) {
+        const cardElemnt = contentRef.value.children[i] as HTMLElement;
+
+        const bottomElement = cardElemnt.offsetTop + cardElemnt.offsetHeight;
+
+        if (bottomElement < props.meta.availableContentHeight) {
+            realContentHeight.value = bottomElement;
+        }
+    }
 });
 </script>
 
 <style scoped lang="scss">
+.table-card {
+    --accent: var(--status-order);
+    --card-bg: var(--status-order-bg);
+    --after-color: var(--status-order-bg-solid);
+
+    position: absolute;
+    top: var(--top);
+    left: var(--leftOffset);
+    width: var(--width);
+    height: var(--height);
+    z-index: var(--zIndex);
+    display: inline-flex;
+    flex-direction: column;
+    max-width: var(--table-column-width);
+    padding: var(--space-2xs) var(--space-2xs) var(--space-2xs) var(--space-sm);
+    overflow: hidden;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--color-border-secondary);
+    border-left: 2px solid var(--accent);
+    background: var(--card-bg);
+    font-family: var(--font-family);
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-semibold);
+    line-height: var(--line-height-normal);
+    color: var(--color-text-primary);
+    white-space: nowrap;
+    cursor: pointer;
+    transition: var(--transition-card);
+
+    &--banquet {
+        --accent: var(--status-banquet);
+        --card-bg: var(--status-banquet-bg);
+        --after-color: var(--status-banquet-bg-solid);
+    }
+
+    &--queue {
+        --accent: var(--status-queue);
+        --card-bg: var(--status-queue-bg);
+        --after-color: var(--status-queue-bg-solid);
+    }
+
+    &--reservation {
+        --accent: var(--status-reservation);
+        --card-bg: var(--status-reservation-bg);
+        --after-color: var(--status-reservation-bg-solid);
+    }
+
+    &:hover {
+        z-index: var(--z-hover);
+
+        backdrop-filter: blur(var(--blur-card-hover));
+
+        width: max-content;
+        min-width: 100%;
+
+        .card-content--clipped {
+            height: var(--height);
+
+            &::after {
+                opacity: 0;
+                visibility: hidden;
+            }
+        }
+    }
+}
+
 .card-content {
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    // height: 100%;
     height: fit-content;
 
     &--clipped {
         position: relative;
-        height: var(--contentHeight);
         overflow: hidden;
-        transition: height 0.3s ease-in;
+        height: var(--contentHeight);
+        transition: height 0.2s ease;
 
         &::after {
             content: "...";
             position: absolute;
-            bottom: var(--contentHeight);
-            right: 2px;
-            font-size: 11px;
-            font-weight: 600;
-            color: #fff;
-
-            background: rgba(0, 151, 253, 0.16);
-
-            padding-left: 20px;
+            right: 0;
+            bottom: 0;
+            pointer-events: none;
+            font-size: var(--font-size-xs);
+            font-weight: var(--font-weight-semibold);
+            line-height: var(--line-height-normal);
+            color: var(--color-text-primary);
+            background: var(--after-color);
         }
     }
 }
@@ -219,148 +259,96 @@ onMounted(() => {
     }
 
     &-label {
-        font-size: 13px;
-        font-weight: 600;
-        color: #e0e0e0;
+        font-size: var(--font-size-sm);
+        font-weight: var(--font-weight-semibold);
+
+        color: var(--color-text-primary);
     }
 
     &-number {
-        font-weight: 400;
-        font-size: 8px;
-        line-height: 100%;
-        color: #fff;
+        font-size: var(--font-size-2xs);
+        font-weight: var(--font-weight-regular);
+        line-height: var(--line-height-tight);
+
+        color: var(--color-text-primary);
     }
 
     &-name {
-        font-weight: 600;
-        font-size: 11px;
-        line-height: 127%;
-        color: #fff;
+        font-size: var(--font-size-xs);
+        font-weight: var(--font-weight-semibold);
+        line-height: var(--line-height-normal);
+
+        color: var(--color-text-primary);
     }
 
     &-guests {
         span {
-            font-weight: 400;
+            font-weight: var(--font-weight-regular);
         }
     }
 
     &-phone {
         display: flex;
         align-items: center;
-        font-weight: 400;
-        font-size: 11px;
-        line-height: 127%;
-        color: #fff;
+
+        font-size: var(--font-size-xs);
+        font-weight: var(--font-weight-regular);
+        line-height: var(--line-height-normal);
+
+        color: var(--color-text-primary);
 
         .phone-icon {
             display: flex;
             align-items: center;
+            svg path {
+                stroke: var(--color-icon);
+            }
         }
     }
 
     &-time {
-        font-weight: 400;
-        font-size: 11px;
-        line-height: 127%;
-        color: #fff;
+        font-size: var(--font-size-xs);
+        font-weight: var(--font-weight-regular);
+        line-height: var(--line-height-normal);
+
+        color: var(--color-text-primary);
     }
 
     &-status-badge {
         display: inline-block;
-        padding: 2px;
-        border-radius: 4px;
-        font-weight: 600;
-        font-size: 8px;
-        line-height: 100%;
-        color: #fff;
+
         width: fit-content;
 
-        &.badge--new {
-            background: rgba(255, 255, 255, 0.12);
-        }
+        padding: var(--space-2xs);
 
-        &.badge--bill,
-        &.badge--open {
-            background: rgba(74, 201, 155, 0.32);
-        }
+        border-radius: var(--radius-xs);
 
-        &.badge--closed {
-            background: rgba(255, 255, 255, 0.12);
-        }
+        font-size: var(--font-size-2xs);
+        font-weight: var(--font-weight-semibold);
+        line-height: var(--line-height-tight);
 
-        &.badge--queue {
-            background: rgba(255, 255, 255, 0.12);
-        }
+        color: var(--color-text-primary);
 
-        &.badge--bid {
-            background: rgba(0, 151, 253, 0.1);
-            color: #0097fd;
-        }
+        &.badge {
+            &--new,
+            &--closed,
+            &--queue {
+                background: var(--badge-bg-default);
+            }
 
-        &.badge--reservation-new {
-            background: #007aff;
-        }
-    }
-}
+            &--bill,
+            &--open {
+                background: var(--badge-bg-success);
+            }
 
-.table-card {
-    position: absolute;
+            &--bid {
+                background: var(--badge-bg-info);
+                color: var(--badge-text-info);
+            }
 
-    top: var(--top);
-    height: var(--height);
-    z-index: var(--zIndex);
-    left: var(--leftOffset);
-    width: var(--width);
-
-    display: inline-flex;
-    flex-direction: column;
-    padding: 2px 2px 2px 6px;
-    border-radius: 6px;
-    max-width: 80px;
-    font-family: var(--font-family);
-    font-weight: 600;
-    font-size: 11px;
-    line-height: 127%;
-    color: #fff;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    overflow: hidden;
-    transition:
-        width 0.3s ease-in,
-        max-width 0.3s ease-in,
-        backdrop-filter 0.3s ease-in;
-    cursor: pointer;
-    white-space: nowrap;
-
-    &--order {
-        background: rgba(127, 215, 204, 0.16);
-        border-left: 2px solid #7fd7cc;
-    }
-
-    &--banquet {
-        background: rgba(179, 72, 247, 0.16);
-        border-left: 2px solid #7b439e;
-    }
-
-    &--queue {
-        background: rgba(0, 151, 253, 0.16);
-        border-left: 2px solid #007aff;
-    }
-
-    &--reservation {
-        background: rgba(255, 112, 67, 0.16);
-        border-left: 2px solid #ff7043;
-    }
-
-    &:hover {
-        z-index: 100;
-        backdrop-filter: blur(8px);
-        width: 100%;
-        min-height: var(--contentHeight);
-        .card-content--clipped {
-            height: var(--height);
-
-            &::after {
-                display: none;
+            &--reservation-new {
+                background: var(--color-accent-primary);
+                color: var(--color-text-active);
             }
         }
     }

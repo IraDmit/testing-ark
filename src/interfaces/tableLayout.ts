@@ -7,7 +7,7 @@ export interface LayoutMeta {
     duration: number;
     height: number;
     top: number;
-    avaliableContentHeight: number | null;
+    availableContentHeight: number | null;
 }
 
 export type Zones = "1 этаж" | "2 этаж" | "Банкетный зал";
