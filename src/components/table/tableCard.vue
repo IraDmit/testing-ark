@@ -1,7 +1,10 @@
 <template>
     <div
         class="table-card"
-        :class="[`table-card--${type}`]"
+        :class="[
+            `table-card--${type}`,
+            contentRefHeight < meta.height ? 'table-card-xs' : '',
+        ]"
         :style="{
             '--top': meta.top + 'px',
             '--height': meta.height + 'px',
@@ -137,14 +140,19 @@ const timeRange = computed(() => {
 const contentRef = useTemplateRef<HTMLElement>("contentRef");
 const realContentHeight = ref(0);
 
+const contentRefHeight = ref(0);
+
 const isClipped = computed(() => {
     if (!contentRef.value) return;
     if (!props.meta.availableContentHeight) return false;
-    return props.meta.availableContentHeight < contentRef.value.offsetHeight;
+    return props.meta.availableContentHeight < contentRefHeight.value;
 });
 
 onMounted(() => {
-    if (!contentRef.value || !props.meta.availableContentHeight) return;
+    if (!contentRef.value) return;
+    contentRefHeight.value = contentRef.value.offsetHeight;
+
+    if (!props.meta.availableContentHeight) return;
 
     for (let i = 0; i < contentRef.value.children.length; i++) {
         const cardElemnt = contentRef.value.children[i] as HTMLElement;
@@ -168,6 +176,7 @@ onMounted(() => {
     top: var(--top);
     left: var(--leftOffset);
     width: var(--width);
+    min-width: var(--width);
     height: var(--height);
     z-index: var(--zIndex);
     display: inline-flex;
@@ -188,6 +197,9 @@ onMounted(() => {
     cursor: pointer;
     transition: var(--transition-card);
 
+    &-xs {
+        min-height: var(--height);
+    }
     &--banquet {
         --accent: var(--status-banquet);
         --card-bg: var(--status-banquet-bg);
@@ -208,11 +220,8 @@ onMounted(() => {
 
     &:hover {
         z-index: var(--z-hover);
-
-        backdrop-filter: blur(var(--blur-card-hover));
-
         width: 100%;
-
+        backdrop-filter: blur(var(--blur-card-hover));
         .card-content--clipped {
             height: var(--height);
 
@@ -222,6 +231,17 @@ onMounted(() => {
             }
         }
     }
+}
+
+.table-card--reservation:hover,
+.table-card--queue:hover {
+    width: auto;
+    max-width: 200px;
+}
+
+.table-card-xs:hover {
+    height: auto;
+    max-height: 1000px;
 }
 
 .card-content {

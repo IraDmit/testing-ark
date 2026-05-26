@@ -30,7 +30,11 @@
         </div>
 
         <div class="booking-card__actions">
-            <button class="btn btn--primary" type="button" @click.prevent="">
+            <button
+                class="btn btn--primary"
+                type="button"
+                @click.prevent="bookTables"
+            >
                 Создать
             </button>
             <button
@@ -104,6 +108,14 @@ const formattedDate = computed(() => {
     const date = new Date(props.date);
     return date.toLocaleDateString("ru-RU", { day: "numeric", month: "long" });
 });
+
+const bookTables = () => {
+    console.group();
+    console.log("Забронировано: ");
+    console.log("Cтолы: ", [...props.tables.keys()]);
+    console.log("Время: ", timeRange.value);
+    console.groupEnd();
+};
 </script>
 
 <style scoped lang="scss">

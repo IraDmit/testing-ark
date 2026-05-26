@@ -40,7 +40,9 @@
                         class="table_column-item"
                         v-for="time in timeSlots"
                         :key="time.value"
-                        :data-left-offset="getColumnOffsetLeft(idxCol)"
+                        :data-left-offset="
+                            getColumnOffsetLeft(idxCol, CELL_TIME_ITEM_WIDTH)
+                        "
                         :data-time="time.value"
                         :data-table-id="table.id"
                         :data-table-number="table.number"
@@ -68,9 +70,11 @@ import tableCard from "../table/tableCard.vue";
 import { toMinutes } from "@/utils/formatTime";
 import { useTableLayout } from "@/composable/useTableLayout";
 import type { Zones } from "@/interfaces/tableLayout";
-import { computed, onMounted, reactive, ref, useTemplateRef } from "vue";
+import { computed, onMounted, ref } from "vue";
 import newCard from "./newCard.vue";
-import { CELL_MINUTES, CELL_WIDTH } from "@/constants";
+import { CELL_WIDTH } from "@/constants";
+import { getColumnOffsetLeft } from "@/utils/bookingHelpers";
+import { useBooking } from "@/composable/useBooking";
 
 const props = defineProps<{
     restaurant: Restaurant;
@@ -92,9 +96,26 @@ const filteredTables = computed(() => {
     );
 });
 
-const getColumnOffsetLeft = (idx: number) => {
-    return CELL_TIME_ITEM_WIDTH.value + idx * CELL_WIDTH;
-};
+const CELL_TIME_ITEM_WIDTH = ref(0);
+const CELL_TABLE_ITEM_HEIGHT = ref(0);
+
+onMounted(() => {
+    CELL_TIME_ITEM_WIDTH.value = Number(
+        document.querySelector(".table_column-time")?.clientWidth,
+    );
+    CELL_TABLE_ITEM_HEIGHT.value = Number(
+        document.querySelector(".table_column-time")?.clientHeight,
+    );
+});
+
+const {
+    isSelecting,
+    newOrder,
+    isShowNewCard,
+    onMouseDown,
+    onMouseMove,
+    onMouseUp,
+} = useBooking(filteredTables, CELL_TABLE_ITEM_HEIGHT, CELL_TIME_ITEM_WIDTH);
 
 const preparedTables = computed(() => {
     return filteredTables.value.map((table) => ({
@@ -147,123 +168,6 @@ const timeSlots = computed<TimeSlots[]>(() => {
 
     return slots;
 });
-
-const isSelecting = ref(false);
-
-const newOrder = ref({
-    x: 0,
-    y: 0,
-    tables: new Map([]) as Map<string, Pick<Table, "capacity" | "number">>,
-    date: props.selectDate,
-    time: {
-        start: 0,
-        end: 0,
-    },
-});
-
-let startPos = ref({
-    y: 0,
-    x: 0,
-    start_time: 0,
-    end_time: 0,
-    start_table: { number: "", capacity: "" },
-    end_table: { number: "", capacity: "", x: 0 },
-});
-
-const isShowNewCard = ref(false);
-
-const onMouseDown = (e: MouseEvent) => {
-    if (e.button !== 0) return;
-    isShowNewCard.value = true;
-
-    const target = e.target as HTMLElement;
-
-    const time = Number(target.getAttribute("data-time"));
-    const tableNumber = target.getAttribute("data-table-number");
-    const tableCapacity = target.getAttribute("data-table-capacity");
-    const leftOffset = target.getAttribute("data-left-offset");
-
-    if (!time || !tableNumber) return;
-
-    isSelecting.value = true;
-
-    startPos.value = {
-        y: target.offsetTop + CELL_TABLE_ITEM_HEIGHT.value,
-        x: Number(leftOffset),
-        start_time: time,
-        end_time: time + CELL_MINUTES,
-        start_table: { number: tableNumber, capacity: tableCapacity! },
-        end_table: {
-            number: tableNumber,
-            capacity: tableCapacity!,
-            x: (target.offsetParent as HTMLElement).offsetLeft,
-        },
-    };
-
-    newOrder.value.x = startPos.value.x;
-    newOrder.value.y = startPos.value.y;
-    newOrder.value.time = { start: time, end: time + CELL_MINUTES };
-    newOrder.value.tables = new Map([
-        [tableNumber, { capacity: Number(tableCapacity), number: tableNumber }],
-    ]);
-};
-
-const onMouseMove = (e: MouseEvent) => {
-    if (!isSelecting.value) return;
-
-    const target = e.target as HTMLElement;
-
-    const time = Number(target.getAttribute("data-time"));
-    const tableId = target.getAttribute("data-table-id");
-
-    if (!time || !tableId) return;
-
-    const startTableIndex = filteredTables.value.findIndex(
-        (t) => t.number === startPos.value.start_table.number,
-    );
-    const currentTableIndex = filteredTables.value.findIndex(
-        (t) => String(t.id) === tableId,
-    );
-
-    if (!startTableIndex || !currentTableIndex) return;
-
-    const minIdx = Math.min(startTableIndex, currentTableIndex);
-    const maxIdx = Math.max(startTableIndex, currentTableIndex);
-
-    newOrder.value.tables = new Map(
-        filteredTables.value
-            .slice(minIdx, maxIdx + 1)
-            .map((table) => [
-                table.number,
-                { number: table.number, capacity: table.capacity },
-            ]),
-    );
-    const startTime = Math.min(time, startPos.value.start_time);
-    const endTime = Math.max(time, startPos.value.start_time) + CELL_MINUTES;
-
-    newOrder.value.time = { start: startTime, end: endTime };
-
-    newOrder.value.x = getColumnOffsetLeft(minIdx);
-
-    const yPos = target.offsetTop + CELL_TIME_ITEM_WIDTH.value;
-    newOrder.value.y = Math.min(startPos.value.y, yPos);
-};
-
-const CELL_TIME_ITEM_WIDTH = ref(0);
-const CELL_TABLE_ITEM_HEIGHT = ref(0);
-
-onMounted(() => {
-    CELL_TIME_ITEM_WIDTH.value = Number(
-        document.querySelector(".table_column-time")?.clientWidth,
-    );
-    CELL_TABLE_ITEM_HEIGHT.value = Number(
-        document.querySelector(".table_column-time")?.clientHeight,
-    );
-});
-
-const onMouseUp = () => {
-    isSelecting.value = false;
-};
 </script>
 
 <style scoped lang="scss">

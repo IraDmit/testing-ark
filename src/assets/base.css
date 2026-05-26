@@ -114,6 +114,7 @@
     --transition-fast: background-color 0.2s ease, opacity 0.2s ease;
     --transition-card:
         width 0.3s ease-in, max-width 0.3s ease-in, min-width 0.3s ease-in,
+        height 0.3s ease-in, min-height 0.3s ease-in,
         backdrop-filter 0.3s ease-in;
 
     --z-sticky: 10;

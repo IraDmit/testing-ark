@@ -7,10 +7,10 @@
             <div class="page-panel-content">
                 <div
                     class="single-date"
-                    :class="{ active: selectDate === date }"
+                    :class="{ active: selectedDate === date }"
                     v-for="date in restaurantData.available_days"
                     :key="date"
-                    @click="selectDate = date"
+                    @click="selectDate(date)"
                 >
                     <span>{{ getDate(date).date }}</span>
                     <span>{{ getDate(date).weekday }}</span>
@@ -36,7 +36,7 @@
                 :restaurant="restaurantData.restaurant"
                 :tables="restaurantData.tables"
                 :select-zones="selectedZones"
-                :select-date="selectDate"
+                :select-date="selectedDate"
             />
         </template>
         <template v-else>
@@ -46,19 +46,33 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from "vue";
+import { onMounted, ref } from "vue";
 import Table from "../table/table.vue";
-// import response from "/public/restaurant-data.json";
 import type { Zones } from "@/interfaces/tableLayout";
 import { useBookingData } from "@/composable/useBookingData";
 import type { RestaurantResponse } from "@/interfaces/RestaurantResponse.ts";
+import { useRouter, useRoute } from "vue-router";
+
+const router = useRouter();
+const route = useRoute();
 
 const restaurantData = ref<RestaurantResponse | null>(null);
 
-const selectDate = ref<string>("");
+const selectedDate = ref<string>("");
 
 const zones: Zones[] = ["1 этаж", "2 этаж", "Банкетный зал"];
 const selectedZones = ref<Zones[]>(["1 этаж", "2 этаж", "Банкетный зал"]);
+
+const selectDate = (date: string) => {
+    selectedDate.value = date;
+
+    router.replace({
+        query: {
+            ...route.query,
+            date: selectedDate.value,
+        },
+    });
+};
 
 const addZone = (zone: Zones) => {
     const idx = selectedZones.value.indexOf(zone);
@@ -67,12 +81,19 @@ const addZone = (zone: Zones) => {
     } else {
         selectedZones.value.splice(idx, 1);
     }
+
+    router.replace({
+        query: {
+            ...route.query,
+            zones: selectedZones.value,
+        },
+    });
 };
 
 const getDate = (dateStr: string) => {
     const date = new Date(dateStr);
 
-    const today = new Date();
+    const today = new Date(restaurantData.value?.current_day || "");
     const tomorrow = new Date();
 
     tomorrow.setDate(today.getDate() + 1);
@@ -105,13 +126,36 @@ const getDate = (dateStr: string) => {
     };
 };
 
-const fetchData = async () => {
+const fetchData = async (initialQuery = route.query) => {
     const data = await useBookingData<RestaurantResponse>();
     restaurantData.value = data;
-    selectDate.value = data.current_day;
+
+    if (initialQuery.date) {
+        selectedDate.value = initialQuery.date as string;
+    } else {
+        selectedDate.value = data.current_day;
+        router.replace({
+            query: {
+                ...route.query,
+                date: data.current_day,
+            },
+        });
+    }
 };
 
-fetchData();
+onMounted(async () => {
+    const initialQuery = { ...route.query };
+
+    if (initialQuery.zones?.length) {
+        selectedZones.value = [initialQuery.zones].flat() as Zones[];
+    } else {
+        await router.replace({
+            query: { ...initialQuery, zones: selectedZones.value },
+        });
+    }
+
+    await fetchData(initialQuery);
+});
 </script>
 
 <style scoped lang="scss">
