@@ -2,28 +2,31 @@
 
 ## Ссылка на деплой проекта
 
+```sh
 https://testing-ark.vercel.app/
+```
 
-## Project Setup
+## Установка зависимостей
 
 ```sh
 npm install
 ```
 
-### Compile and Hot-Reload for Development
-
+### Запуск проекта в дев режиме
 ```sh
 npm run dev
 ```
 
-### Type-Check, Compile and Minify for Production
+### Запуск сборки проекта
 
 ```sh
 npm run build
 ```
 
-### Lint with [ESLint](https://eslint.org/)
+### Просмотр сброки проекта
 
 ```sh
-npm run lint
+npm run preview
 ```
+
+
