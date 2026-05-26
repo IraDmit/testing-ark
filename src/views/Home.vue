@@ -6,9 +6,7 @@ import theHeader from "@/components/navigation/theHeader.vue";
 <template>
     <theHeader />
 
-    <main>
-        <Dashboard />
-    </main>
+    <Dashboard />
 </template>
 
 <style scoped lang="scss"></style>
