@@ -1,14 +1,9 @@
-<script setup lang="ts">
-import Dashboard from './components/dashboard/dashboard.vue'
-import theHeader from './components/navigation/theHeader.vue'
-</script>
+<script setup lang="ts"></script>
 
 <template>
-  <theHeader />
-
-  <main>
-    <Dashboard />
-  </main>
+    <main>
+        <RouterView :key="$route.fullPath" />
+    </main>
 </template>
 
 <style scoped lang="scss"></style>
