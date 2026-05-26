@@ -211,8 +211,7 @@ onMounted(() => {
 
         backdrop-filter: blur(var(--blur-card-hover));
 
-        width: max-content;
-        min-width: 100%;
+        width: 100%;
 
         .card-content--clipped {
             height: var(--height);

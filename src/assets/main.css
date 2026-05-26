@@ -5,6 +5,13 @@
 body {
     background-color: var(--color-bg-app);
     height: 100%;
+    color: var(--color-text-primary);
+    min-height: 100vh;
+}
+
+#app {
+    min-height: 100vh;
+    height: 100%;
 }
 
 .base-button {

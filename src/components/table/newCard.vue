@@ -1,8 +1,7 @@
 <template>
     <div
         class="booking-card"
-        role="dialog"
-        aria-labelledby="booking-title"
+        :class="{ active: !isDrawing }"
         :style="{
             '--top': top + 'px',
             '--left': left + 'px',
@@ -10,22 +9,37 @@
             '--width': width + 'px',
         }"
     >
+        <div class="booking-card__action" @click.prevent="emit('close')">
+            &times;
+        </div>
         <div class="booking-card__title" id="booking-title">
             Новое бронирование
         </div>
 
-        <div class="booking-card__row">27 марта</div>
-        <div class="booking-card__row">10:00 – 12:00</div>
-        <div class="booking-card__row booking-card__row--muted">2 часа</div>
+        <div class="booking-card__row">{{ formattedDate }}</div>
+        <div class="booking-card__row">{{ timeRange }}</div>
+        <div class="booking-card__row booking-card__row--muted">
+            {{ duration }}
+        </div>
 
         <div class="booking-card__row booking-card__row--tables">
-            Столы <strong>#2 + #4 + #5</strong>
+            Столы <strong>{{ tableNumbers }}</strong>
         </div>
-        <div class="booking-card__row booking-card__row--people">На 8 чел</div>
+        <div class="booking-card__row booking-card__row--people">
+            На {{ countCapacity }} чел
+        </div>
 
         <div class="booking-card__actions">
-            <button class="btn btn--primary" type="button">Создать</button>
-            <button class="btn btn--secondary" type="button">Отменить</button>
+            <button class="btn btn--primary" type="button" @click.prevent="">
+                Создать
+            </button>
+            <button
+                class="btn btn--secondary"
+                type="button"
+                @click.prevent="emit('close')"
+            >
+                Отменить
+            </button>
         </div>
     </div>
 </template>
@@ -39,21 +53,56 @@ const props = withDefaults(
     defineProps<{
         top: number;
         left: number;
-
-        tables: Map<number, number>;
+        date: string;
+        tables: Map<string, Pick<Table, "capacity" | "number">>;
         time: { start: number; end: number };
+        isDrawing: boolean;
     }>(),
     {
         top: 0,
         left: 0,
+        isDrawing: true,
     },
 );
 
-const width = computed(() => {
-    return props.tables.length * CELL_WIDTH;
+const emit = defineEmits<{
+    (e: "close"): void;
+}>();
+
+const width = computed(() => props.tables.size * CELL_WIDTH);
+
+const height = computed(() => (props.time.end - props.time.start) * MINUTE_PX);
+
+const countCapacity = computed(() =>
+    [...props.tables.values()].reduce((sum, t) => sum + t.capacity, 0),
+);
+
+const tableNumbers = computed(() =>
+    [...props.tables.values()].map((t) => `#${t.number}`).join(" + "),
+);
+
+const toLabel = (minutes: number) => {
+    const hours = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+    return `${String(hours).padStart(2, "0")}:${String(mins).padStart(2, "0")}`;
+};
+
+const timeRange = computed(
+    () => `${toLabel(props.time.start)} – ${toLabel(props.time.end)}`,
+);
+
+const duration = computed(() => {
+    const diff = props.time.end - props.time.start;
+    const hours = Math.floor(diff / 60);
+    const mins = diff % 60;
+    if (hours && mins) return `${hours} ч ${mins} мин`;
+    if (hours) return `${hours} ч`;
+    return `${mins} мин`;
 });
-const height = computed(() => {
-    return (props.time.end - props.time.start) * MINUTE_PX;
+
+const formattedDate = computed(() => {
+    const date = new Date(props.date);
+    return date.toLocaleDateString("ru-RU", { day: "numeric", month: "long" });
 });
 </script>
 
@@ -64,19 +113,18 @@ const height = computed(() => {
     border-radius: var(--radius-lg);
     padding: var(--space-md);
     width: var(--width);
-    // max-width: 360px;
+
     box-shadow: var(--shadow-card);
     display: flex;
     flex-direction: column;
     gap: var(--space-xs);
-
     height: var(--height);
-
     position: absolute;
     z-index: 1000;
     top: var(--top);
     left: var(--left);
-    overflow: hidden;
+    overflow: auto;
+    pointer-events: none;
     &__title {
         font-size: var(--font-size-xl);
         font-weight: var(--font-weight-semibold);
@@ -107,6 +155,15 @@ const height = computed(() => {
         flex-direction: column;
         gap: var(--space-xs);
         margin-top: var(--space-xs);
+    }
+    &__action {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        cursor: pointer;
+    }
+    &.active {
+        pointer-events: all;
     }
     .btn {
         display: flex;

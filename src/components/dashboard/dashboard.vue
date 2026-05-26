@@ -1,5 +1,5 @@
 <template>
-    <section>
+    <section v-if="restaurantData">
         <h1 class="page-title">Бронирования</h1>
 
         <div class="page-panel">
@@ -8,7 +8,7 @@
                 <div
                     class="single-date"
                     :class="{ active: selectDate === date }"
-                    v-for="date in response.available_days"
+                    v-for="date in restaurantData.available_days"
                     :key="date"
                     @click="selectDate = date"
                 >
@@ -31,24 +31,31 @@
                 </div>
             </div>
         </div>
-
-        <Table
-            :restaurant="response.restaurant"
-            :tables="response.tables"
-            :select-zones="selectedZones"
-            :select-date="selectDate"
-        />
+        <template v-if="selectedZones.length">
+            <Table
+                :restaurant="restaurantData.restaurant"
+                :tables="restaurantData.tables"
+                :select-zones="selectedZones"
+                :select-date="selectDate"
+            />
+        </template>
+        <template v-else>
+            <div class="page-warning">Выберите зону для отображения</div>
+        </template>
     </section>
 </template>
 
 <script setup lang="ts">
 import { ref } from "vue";
 import Table from "../table/table.vue";
-import response from "/public/restaurant-data.json";
+// import response from "/public/restaurant-data.json";
 import type { Zones } from "@/interfaces/tableLayout";
-// import { useBookingData } from "@/composable/useBookingData";
+import { useBookingData } from "@/composable/useBookingData";
+import type { RestaurantResponse } from "@/interfaces/RestaurantResponse.ts";
 
-const selectDate = ref<string>(response.current_day);
+const restaurantData = ref<RestaurantResponse | null>(null);
+
+const selectDate = ref<string>("");
 
 const zones: Zones[] = ["1 этаж", "2 этаж", "Банкетный зал"];
 const selectedZones = ref<Zones[]>(["1 этаж", "2 этаж", "Банкетный зал"]);
@@ -98,19 +105,20 @@ const getDate = (dateStr: string) => {
     };
 };
 
-// const fetchData = async () => {
-//     const data = await useBookingData();
-//     console.log(data);
-// };
+const fetchData = async () => {
+    const data = await useBookingData<RestaurantResponse>();
+    restaurantData.value = data;
+    selectDate.value = data.current_day;
+};
 
-// fetchData();
+fetchData();
 </script>
 
 <style scoped lang="scss">
 section {
     display: flex;
     flex-direction: column;
-
+    height: 100%;
     gap: var(--space-md);
 
     padding: var(--space-lg) 0 var(--space-lg) 20px;
@@ -212,5 +220,16 @@ section {
         background-color: var(--color-accent-primary);
         color: var(--color-text-active);
     }
+}
+.page-warning {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--font-family);
+    font-size: var(--font-size-lg);
+    font-weight: var(--font-weight-regular);
+    line-height: 145%;
 }
 </style>

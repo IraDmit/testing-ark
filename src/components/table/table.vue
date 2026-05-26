@@ -2,13 +2,12 @@
     <div
         class="table"
         ref="table"
-        :style="{ gridTemplateColumns: gridColumns }"
+        :style="{ '--gridTemplateColumns': gridColumns }"
         @mousemove="onMouseMove"
         @mousedown="onMouseDown"
-        @keydown.esc="isSelecting = false"
         @mouseup="onMouseUp"
+        @mouseleave="onMouseUp"
     >
-        <!-- @mouseleave="onMouseUp" -->
         <div class="table_row-title">
             <div class="table_column-time"></div>
             <div
@@ -19,7 +18,7 @@
                 {{ time.label }}
             </div>
         </div>
-        <template v-for="table in preparedTables" :key="table.id">
+        <template v-for="(table, idxCol) in preparedTables" :key="table.id">
             <div class="table_column">
                 <div class="table_column-title">
                     <span>
@@ -41,6 +40,7 @@
                         class="table_column-item"
                         v-for="time in timeSlots"
                         :key="time.value"
+                        :data-left-offset="getColumnOffsetLeft(idxCol)"
                         :data-time="time.value"
                         :data-table-id="table.id"
                         :data-table-number="table.number"
@@ -50,13 +50,14 @@
             </div>
         </template>
         <newCard
+            :date="selectDate"
             :top="newOrder.y"
             :left="newOrder.x"
-            :height="newOrder.height"
-            :width="newOrder.width"
-            :tables="newOrder.tables || []"
+            :tables="newOrder.tables"
             :time="newOrder.time"
-            v-show="isSelecting"
+            v-if="isShowNewCard"
+            @close="isShowNewCard = false"
+            :is-drawing="isSelecting"
         />
     </div>
 </template>
@@ -67,7 +68,7 @@ import tableCard from "../table/tableCard.vue";
 import { toMinutes } from "@/utils/formatTime";
 import { useTableLayout } from "@/composable/useTableLayout";
 import type { Zones } from "@/interfaces/tableLayout";
-import { computed, ref, useTemplateRef } from "vue";
+import { computed, onMounted, reactive, ref, useTemplateRef } from "vue";
 import newCard from "./newCard.vue";
 import { CELL_MINUTES, CELL_WIDTH } from "@/constants";
 
@@ -91,6 +92,10 @@ const filteredTables = computed(() => {
     );
 });
 
+const getColumnOffsetLeft = (idx: number) => {
+    return CELL_TIME_ITEM_WIDTH.value + idx * CELL_WIDTH;
+};
+
 const preparedTables = computed(() => {
     return filteredTables.value.map((table) => ({
         ...table,
@@ -105,7 +110,7 @@ const preparedTables = computed(() => {
 });
 
 const gridColumns = computed(
-    () => `32px repeat(${filteredTables.value.length}, 80px)`,
+    () => `32px repeat(${filteredTables.value.length}, ${CELL_WIDTH}px)`,
 );
 
 const toLabel = (minutes: number) => {
@@ -143,14 +148,12 @@ const timeSlots = computed<TimeSlots[]>(() => {
     return slots;
 });
 
-const container = useTemplateRef("table");
-
 const isSelecting = ref(false);
 
 const newOrder = ref({
     x: 0,
     y: 0,
-    tables: new Map([]) as Map<number, number>,
+    tables: new Map([]) as Map<string, Pick<Table, "capacity" | "number">>,
     date: props.selectDate,
     time: {
         start: 0,
@@ -158,66 +161,105 @@ const newOrder = ref({
     },
 });
 
-let startPos = {
+let startPos = ref({
     y: 0,
     x: 0,
-};
+    start_time: 0,
+    end_time: 0,
+    start_table: { number: "", capacity: "" },
+    end_table: { number: "", capacity: "", x: 0 },
+});
+
+const isShowNewCard = ref(false);
 
 const onMouseDown = (e: MouseEvent) => {
-    const rect = container?.value?.getBoundingClientRect();
+    if (e.button !== 0) return;
+    isShowNewCard.value = true;
+
     const target = e.target as HTMLElement;
-    console.log(target);
 
-    if (!container.value && target.attributes["data-time"].value) return;
+    const time = Number(target.getAttribute("data-time"));
+    const tableNumber = target.getAttribute("data-table-number");
+    const tableCapacity = target.getAttribute("data-table-capacity");
+    const leftOffset = target.getAttribute("data-left-offset");
 
-    // const startTime =
+    if (!time || !tableNumber) return;
 
     isSelecting.value = true;
-    console.log(target.offsetTop, rect.left);
-    console.log(target.offsetParent.offsetLeft, rect.top);
-    startPos = {
-        y: target.offsetTop + 48,
-        x: target.offsetParent.offsetLeft,
+
+    startPos.value = {
+        y: target.offsetTop + CELL_TABLE_ITEM_HEIGHT.value,
+        x: Number(leftOffset),
+        start_time: time,
+        end_time: time + CELL_MINUTES,
+        start_table: { number: tableNumber, capacity: tableCapacity! },
+        end_table: {
+            number: tableNumber,
+            capacity: tableCapacity!,
+            x: (target.offsetParent as HTMLElement).offsetLeft,
+        },
     };
 
-    newOrder.value.x = startPos.x;
-    newOrder.value.y = startPos.y;
-    newOrder.value.time = {
-        start: Number(target.attributes["data-time"].value),
-        end: +target.attributes["data-time"].value + CELL_MINUTES,
-    };
-    newOrder.value.tables.set(
-        target.attributes["data-table-number"].value,
-        target.attributes["data-table-capacity"].value,
-    );
-    console.log(newOrder.value);
+    newOrder.value.x = startPos.value.x;
+    newOrder.value.y = startPos.value.y;
+    newOrder.value.time = { start: time, end: time + CELL_MINUTES };
+    newOrder.value.tables = new Map([
+        [tableNumber, { capacity: Number(tableCapacity), number: tableNumber }],
+    ]);
 };
-const calculateData = () => {};
 
 const onMouseMove = (e: MouseEvent) => {
+    if (!isSelecting.value) return;
+
     const target = e.target as HTMLElement;
-    if (
-        newOrder?.value?.tables?.has(
-            target.attributes["data-table-number"].value,
-        ) &&
-        newOrder.value.time.start ===
-            Number(target.attributes["data-time"].value)
-    )
-        return;
 
-    if (!container.value || !isSelecting.value) return;
+    const time = Number(target.getAttribute("data-time"));
+    const tableId = target.getAttribute("data-table-id");
 
-    const xPos = target.offsetParent.offsetLeft;
-    const yPos = target.offsetTop + 48;
-    newOrder.value = {
-        x: Math.min(startPos.x, xPos),
-        y: Math.min(startPos.y, yPos),
-    };
-    newOrder.value.tables.set(
-        target.attributes["data-table-number"].value,
-        target.attributes["data-table-capacity"].value,
+    if (!time || !tableId) return;
+
+    const startTableIndex = filteredTables.value.findIndex(
+        (t) => t.number === startPos.value.start_table.number,
     );
+    const currentTableIndex = filteredTables.value.findIndex(
+        (t) => String(t.id) === tableId,
+    );
+
+    if (!startTableIndex || !currentTableIndex) return;
+
+    const minIdx = Math.min(startTableIndex, currentTableIndex);
+    const maxIdx = Math.max(startTableIndex, currentTableIndex);
+
+    newOrder.value.tables = new Map(
+        filteredTables.value
+            .slice(minIdx, maxIdx + 1)
+            .map((table) => [
+                table.number,
+                { number: table.number, capacity: table.capacity },
+            ]),
+    );
+    const startTime = Math.min(time, startPos.value.start_time);
+    const endTime = Math.max(time, startPos.value.start_time) + CELL_MINUTES;
+
+    newOrder.value.time = { start: startTime, end: endTime };
+
+    newOrder.value.x = getColumnOffsetLeft(minIdx);
+
+    const yPos = target.offsetTop + CELL_TIME_ITEM_WIDTH.value;
+    newOrder.value.y = Math.min(startPos.value.y, yPos);
 };
+
+const CELL_TIME_ITEM_WIDTH = ref(0);
+const CELL_TABLE_ITEM_HEIGHT = ref(0);
+
+onMounted(() => {
+    CELL_TIME_ITEM_WIDTH.value = Number(
+        document.querySelector(".table_column-time")?.clientWidth,
+    );
+    CELL_TABLE_ITEM_HEIGHT.value = Number(
+        document.querySelector(".table_column-time")?.clientHeight,
+    );
+});
 
 const onMouseUp = () => {
     isSelecting.value = false;
@@ -226,13 +268,9 @@ const onMouseUp = () => {
 
 <style scoped lang="scss">
 .table {
-    display: grid;
-    grid-template-columns:
-        var(--table-time-column-width)
-        repeat(var(--columnCount), var(--table-column-width));
-
     position: relative;
-
+    display: grid;
+    grid-template-columns: var(--gridTemplateColumns);
     width: fit-content;
     height: fit-content;
 

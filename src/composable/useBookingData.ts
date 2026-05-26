@@ -1,5 +1,4 @@
-export const useBookingData = async()=>{
-    const data = await import '/public/restaurant-data.json';
-
-    return data
-}
+export const useBookingData = async <T>(): Promise<T> => {
+    const res = await fetch("/restaurant-data.json");
+    return res.json() as T;
+};
