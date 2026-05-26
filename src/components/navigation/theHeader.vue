@@ -78,7 +78,7 @@ const switchTheme = () => {
 
         font-family: var(--font-family);
         font-size: var(--font-size-xs);
-        font-weight: var(-font-weight-regular);
+        font-weight: var(--font-weight-regular);
         line-height: var(--line-height-relaxed);
         color: var(--color-text-primary);
 
